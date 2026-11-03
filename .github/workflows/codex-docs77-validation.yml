@@ -1,0 +1,48 @@
+name: Docs 77 exact candidate validation
+on:
+  push:
+    branches: ["codex-ci/docs77-1edc34c-20261104"]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: 1adc0b6a469c0bc702c5210f3119b4cf53586bb6
+          path: baseline
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          ref: 1edc34c25d8d34bc49245cb35d84d6ccb245e07b
+          path: candidate
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.4"
+      - name: Assert exact source commits
+        run: |
+          test "$(git -C baseline rev-parse HEAD)" = "1adc0b6a469c0bc702c5210f3119b4cf53586bb6"
+          test "$(git -C candidate rev-parse HEAD)" = "1edc34c25d8d34bc49245cb35d84d6ccb245e07b"
+          node --version
+      - name: Install fixed Mint CLI
+        run: |
+          npm install --prefix "$RUNNER_TEMP/docs-tooling" --no-audit --no-fund mint@4.2.1140
+          node "$RUNNER_TEMP/docs-tooling/node_modules/mint/index.js" --version
+      - name: Validate unchanged upstream baseline
+        id: baseline
+        continue-on-error: true
+        working-directory: baseline
+        run: node "$RUNNER_TEMP/docs-tooling/node_modules/mint/index.js" validate --format json
+      - name: Validate exact source candidate
+        id: candidate
+        continue-on-error: true
+        working-directory: candidate
+        run: node "$RUNNER_TEMP/docs-tooling/node_modules/mint/index.js" validate --format json
+      - name: Require both validation commands to pass
+        if: always()
+        run: |
+          test "${{ steps.baseline.outcome }}" = "success"
+          test "${{ steps.candidate.outcome }}" = "success"
